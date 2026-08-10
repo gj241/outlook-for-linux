@@ -62,7 +62,7 @@ jobs:
           find dist -maxdepth 1 -type f \( \
             -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' -o -name '*.tar.gz' -o \
             -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.yml' -o -name '*.blockmap' \) \
-            -exec cp -t artifacts {} +
+            -exec cp {} artifacts/ \;
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
@@ -93,7 +93,7 @@ jobs:
           mkdir -p upload
           # Flatten every build artifact into one directory (filenames are
           # unique across arches/platforms).
-          find artifacts -type f -exec cp -t upload {} +
+          find artifacts -type f -exec cp {} upload/ \;
           echo "Uploading $(find upload -type f | wc -l) assets to $TAG"
           if gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" -R "$GITHUB_REPOSITORY" upload/* --clobber
