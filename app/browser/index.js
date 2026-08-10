@@ -56,5 +56,7 @@ function initializeModules(config, ipcRenderer) {
 	require('./tools/zoom').init(config);
 	require('./tools/shortcuts').init(config);
 	require('./tools/settings').init(config, ipcRenderer);
+	require('./tools/accountSwitcher').init(config, ipcRenderer);
+	require('./tools/mailNotifications').init(config, ipcRenderer);
 }
 

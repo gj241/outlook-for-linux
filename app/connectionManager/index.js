@@ -1,10 +1,11 @@
-const { ipcMain, net, powerMonitor } = require('electron');
+const { net } = require('electron');
 const { LucidLog } = require('lucid-log');
 
 let _ConnectionManager_window = new WeakMap();
 let _ConnectionManager_config = new WeakMap();
 let _ConnectionManager_logger = new WeakMap();
 let _ConnectionManager_currentUrl = new WeakMap();
+
 class ConnectionManager {
 	/**
 	 * @returns {Electron.BrowserWindow}
@@ -45,8 +46,6 @@ class ConnectionManager {
 			levels: options.config.appLogLevels.split(',')
 		}));
 		_ConnectionManager_currentUrl.set(this, url ? url : this.config.url);
-		ipcMain.on('offline-retry', assignOfflineRetryHandler(this));
-		powerMonitor.on('resume', assignSystemResumeEventHandler(this));
 		this.window.webContents.on('did-fail-load', assignOnDidFailLoadEventHandler(this));
 		this.refresh();
 	}
@@ -73,9 +72,9 @@ class ConnectionManager {
 	}
 
 	/**
-	 * @param {number} timeout 
-	 * @param {number} retries 
-	 * @returns 
+	 * @param {number} timeout
+	 * @param {number} retries
+	 * @returns
 	 */
 	async isOnline(timeout, retries) {
 		const onlineCheckMethod = this.config.onlineCheckMethod;
@@ -122,26 +121,8 @@ class ConnectionManager {
 }
 
 /**
- * 
- * @param {ConnectionManager} cm 
- */
-function assignOfflineRetryHandler(cm) {
-	return () => {
-		cm.refresh();
-	};
-}
-
-/**
- * @param {ConnectionManager} cm 
- */
-function assignSystemResumeEventHandler(cm) {
-	return () => {
-		cm.refresh();
-	};
-}
-
-/**
- * @param {ConnectionManager} cm 
+ *
+ * @param {ConnectionManager} cm
  */
 function assignOnDidFailLoadEventHandler(cm) {
 	return (event, code, description) => {
@@ -180,4 +161,4 @@ function isOnlineDns(testDomain) {
 	});
 }
 
-module.exports = new ConnectionManager();
+module.exports = ConnectionManager;

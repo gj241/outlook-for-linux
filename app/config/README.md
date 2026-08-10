@@ -20,11 +20,13 @@ Here is the list of available arguments and its usage:
 | clearStorage | Whether to clear the storage before creating the window or not | false |
 | clientCertPath clientCertPassword | custom Client Certs for corporate authentication (certificate must be in pkcs12 format) | [] |
 | closeAppOnCross | Close the app when clicking the close (X) cross | false |
+| accountCacheSize | Number of non-active account windows to keep alive (cached) before evicting to cold | 2 |
 | config | config file location | ~/.config/outlook-for-linux/config.json |
 | defaultURLHandler | Default application to be used to open the HTTP URLs |  |
 | disableNotifications | A flag to disable all notifications | false |
 | disableNotificationSound | Disable notification sound | false |
 | disableNotificationWindowFlash | A flag indicates whether to disable window flashing when there is a notification | false |
+| notifyOnNewMail | Show a desktop notification when new mail arrives (driven by the unread count in the page title) | true |
 | help  | show the available commands | false |
 | onlineCheckMethod | Type of network test for checking online status, can be: https, dns, native, none | https |
 | partition | [BrowserWindow](https://electronjs.org/docs/api/browser-window) webpreferences partition | persist:outlook-4-linux |

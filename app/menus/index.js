@@ -1,4 +1,4 @@
-const { app, Menu, MenuItem, clipboard, dialog, session, ipcMain } = require('electron');
+const { app, Menu, dialog, ipcMain } = require('electron');
 const fs = require('fs'),
 	path = require('path');
 const application = require('./application');
@@ -6,27 +6,32 @@ const preferences = require('./preferences');
 const help = require('./help');
 const Tray = require('./tray');
 const { LucidLog } = require('lucid-log');
-const connectionManager = require('../connectionManager');
 
 class Menus {
-	constructor(window, config, iconPath) {
-		/**
-		 * @type {Electron.BrowserWindow}
-		 */
-		this.window = window;
+	/**
+	 * @param {import('../accountManager')} accountManager
+	 * @param {object} config
+	 * @param {string} iconPath
+	 */
+	constructor(accountManager, config, iconPath) {
+		this.accountManager = accountManager;
 		this.iconPath = iconPath;
 		this.config = config;
-		this.allowQuit = false;
 		this.logger = new LucidLog({
 			levels: config.appLogLevels.split(',')
 		});
 		this.initialize();
 	}
 
-	async quit(clearStorage = false) {
-		this.allowQuit = true;
+	/**
+	 * @returns {Electron.BrowserWindow}
+	 */
+	get activeWindow() {
+		return this.accountManager.getActive().window;
+	}
 
-		clearStorage = clearStorage && dialog.showMessageBoxSync(this.window, {
+	async quit(clearStorage = false) {
+		clearStorage = clearStorage && dialog.showMessageBoxSync(this.activeWindow, {
 			buttons: ['Yes', 'No'],
 			title: 'Quit',
 			normalizeAccessKeys: true,
@@ -37,19 +42,25 @@ class Menus {
 		}) === 0;
 
 		if (clearStorage) {
-			const defSession = session.fromPartition(this.config.partition);
-			await defSession.clearStorageData();
+			const { session } = require('electron');
+			const activeAccount = this.accountManager.getAccount(this.accountManager.activeId);
+			if (activeAccount) {
+				await session.fromPartition(activeAccount.partition).clearStorageData();
+			}
 		}
 
-		this.window.close();
+		this.accountManager.quitAll();
 	}
 
 	open() {
-		if (!this.window.isVisible()) {
-			this.window.show();
+		const win = this.activeWindow;
+		if (!win) {
+			return;
 		}
-
-		this.window.focus();
+		if (!win.isVisible()) {
+			win.show();
+		}
+		win.focus();
 	}
 
 	about() {
@@ -60,7 +71,7 @@ class Menus {
 				appInfo.push(`${prop}: ${process.versions[prop]}`);
 			}
 		}
-		dialog.showMessageBoxSync(this.window, {
+		dialog.showMessageBoxSync(this.activeWindow, {
 			buttons: ['OK'],
 			title: 'About',
 			normalizeAccessKeys: true,
@@ -72,74 +83,128 @@ class Menus {
 	}
 
 	reload(show = true) {
-		if (show) {
-			this.window.show();
+		const active = this.accountManager.getActive();
+		if (show && active.window) {
+			active.window.show();
 		}
-
-		connectionManager.refresh();
+		if (active.connMgr) {
+			active.connMgr.refresh();
+		}
 	}
 
 	debug() {
-		this.window.openDevTools();
+		if (this.activeWindow) {
+			this.activeWindow.openDevTools();
+		}
 	}
 
 	hide() {
-		this.window.hide();
+		if (this.activeWindow) {
+			this.activeWindow.hide();
+		}
+	}
+
+	saveSettings() {
+		if (this.activeWindow) {
+			this.activeWindow.webContents.send('get-outlook-settings');
+		}
+	}
+
+	restoreSettings() {
+		if (this.activeWindow) {
+			this.activeWindow.webContents.send('set-outlook-settings', JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'outlook_settings.json'))));
+		}
+	}
+
+	switchAccount(id) {
+		this.accountManager.switchTo(id);
+	}
+
+	addAccount() {
+		this.accountManager.addAccount();
 	}
 
 	initialize() {
 		const appMenu = application(this);
 
 		if (this.config.menubar === 'hidden') {
-			this.window.removeMenu();
+			Menu.setApplicationMenu(null);
 		} else {
-			this.window.setMenu(Menu.buildFromTemplate([
+			Menu.setApplicationMenu(Menu.buildFromTemplate([
 				appMenu,
 				preferences(),
-				help(app, this.window),
+				help(app, this.activeWindow),
 			]));
 		}
 
 		this.initializeEventHandlers();
 
-		this.tray = new Tray(this.window, appMenu.submenu, this.iconPath);
+		this.tray = new Tray(this.accountManager, this.buildTrayTemplate(), this.iconPath);
+		this.accountManager.onChange(() => this.rebuildTray());
 	}
 
 	initializeEventHandlers() {
 		app.on('before-quit', () => this.onBeforeQuit());
 		ipcMain.on('get-outlook-settings', saveSettingsInternal);
 		ipcMain.on('set-outlook-settings', restoreSettingsInternal);
-		this.window.on('close', (event) => this.onClose(event));
 	}
 
 	onBeforeQuit() {
 		this.logger.debug('before-quit');
-		this.allowQuit = true;
+		this.accountManager.allowQuit = true;
 	}
 
-	onClose(event) {
-		this.logger.debug('window close');
-		if (!this.allowQuit && !this.config.closeAppOnCross) {
-			event.preventDefault();
-			this.hide();
-		} else {
-			this.tray.close();
-			this.window.webContents.session.flushStorageData();
+	rebuildTray() {
+		if (this.tray) {
+			this.tray.setContextMenu(this.buildTrayTemplate());
 		}
 	}
 
-	saveSettings() {
-		this.window.webContents.send('get-outlook-settings');
-	}
+	/**
+	 * Build the tray context menu: the application actions plus an Accounts
+	 * submenu (one radio item per account, the active one selected) and an
+	 * "Add account…" entry.
+	 */
+	buildTrayTemplate() {
+		const accounts = this.accountManager.getAccounts();
+		const activeId = this.accountManager.activeId;
+		const accountsSubmenu = accounts.map(account => ({
+			label: account.name,
+			type: 'radio',
+			checked: account.id === activeId,
+			click: () => this.switchAccount(account.id)
+		}));
+		accountsSubmenu.push({ type: 'separator' });
+		accountsSubmenu.push({
+			label: 'Add account…',
+			click: () => this.addAccount()
+		});
 
-	restoreSettings() {
-		this.window.webContents.send('set-outlook-settings', JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'outlook_settings.json'))));
+		return [
+			{ label: 'About', click: () => this.about() },
+			{ type: 'separator' },
+			{ label: 'Open', click: () => this.open() },
+			{ label: 'Refresh', click: () => this.reload(false) },
+			{ label: 'Hide', click: () => this.hide() },
+			{ label: 'Debug', click: () => this.debug() },
+			{ type: 'separator' },
+			{ label: 'Settings', submenu: [
+				{ label: 'Save', click: () => this.saveSettings() },
+				{ label: 'Restore', click: () => this.restoreSettings() }
+			] },
+			{ label: 'Accounts', submenu: accountsSubmenu },
+			{ type: 'separator' },
+			{ label: 'Quit', submenu: [
+				{ label: 'Normally', accelerator: 'ctrl+Q', click: () => this.quit() },
+				{ label: 'Clear Storage', click: () => this.quit(true) }
+			] }
+		];
 	}
 }
 
 function saveSettingsInternal(event, arg) {
 	fs.writeFileSync(path.join(app.getPath('userData'), 'outlook_settings.json'), JSON.stringify(arg));
-	dialog.showMessageBoxSync(this.window, {
+	dialog.showMessageBoxSync({
 		message: 'Settings have been saved successfully!',
 		title: 'Save settings',
 		type: 'info'
@@ -148,7 +213,7 @@ function saveSettingsInternal(event, arg) {
 
 function restoreSettingsInternal(event, arg) {
 	if (arg) {
-		dialog.showMessageBoxSync(this.window, {
+		dialog.showMessageBoxSync({
 			message: 'Settings have been restored successfully!',
 			title: 'Restore settings',
 			type: 'info'

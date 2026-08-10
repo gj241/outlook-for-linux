@@ -1,9 +1,15 @@
-const { app, ipcMain } = require('electron');
+const { app, ipcMain, Notification } = require('electron');
 const path = require('path');
 const { LucidLog } = require('lucid-log');
 const isDev = require('electron-is-dev');
 if (app.commandLine.hasSwitch('customUserDir')) {
 	app.setPath('userData', app.commandLine.getSwitchValue('customUserDir'));
+} else if (isDev) {
+	// Raw `electron ./app` defaults app.name to "Electron", so existing data
+	// (login sessions, app.accounts) lives in ~/.config/Electron. Pin it there
+	// before rebranding app.name below, so the data dir doesn't move and logins
+	// aren't lost. Packaged builds use ~/.config/outlook-for-linux already.
+	app.setPath('userData', path.join(app.getPath('appData'), 'Electron'));
 }
 
 const { AppConfiguration } = require('./appConfiguration');
@@ -11,6 +17,20 @@ const appConfig = new AppConfiguration(app.getPath('userData'));
 
 const config = appConfig.startupConfig;
 config.appPath = path.join(__dirname, isDev ? '' : '../../');
+
+// Brand the app so the Linux dock and notifications resolve to
+// "Outlook for Linux" (via the outlook-for-linux.desktop file) instead of the
+// default "Electron". The app_id / WM_CLASS must match the .desktop
+// StartupWMClass, so use a lowercase hyphenated name (no spaces — a spaced
+// app_id is invalid and GNOME falls back to the binary name "electron").
+app.name = 'outlook-for-linux';
+if (typeof app.setDesktopName === 'function') {
+	app.setDesktopName('outlook-for-linux');
+}
+
+// Icon used on new-mail notifications (same asset as the tray icon).
+const TrayIconChooser = require('./browser/tools/trayIconChooser');
+const notificationIcon = new TrayIconChooser(config).getFile();
 
 const logger = new LucidLog({
 	levels: config.appLogLevels.split(',')
@@ -37,6 +57,7 @@ try {
 const certificateModule = require('./certificate');
 const gotTheLock = app.requestSingleInstanceLock();
 const mainAppWindow = require('./mainAppWindow');
+const accountManager = require('./accountManager');
 
 if (config.proxyServer) app.commandLine.appendSwitch('proxy-server', config.proxyServer);
 app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
@@ -76,6 +97,12 @@ if (!gotTheLock) {
 	ipcMain.handle('saveZoomLevel', handleSaveZoomLevel);
 	ipcMain.handle('play-notification-sound', playNotificationSound);
 	ipcMain.handle('set-badge-count', setBadgeCountHandler);
+	ipcMain.handle('accounts:get', handleAccountsGet);
+	ipcMain.on('accounts:switch', handleAccountsSwitch);
+	ipcMain.on('accounts:add', handleAccountsAdd);
+	ipcMain.on('accounts:remove', handleAccountsRemove);
+	ipcMain.on('accounts:rename', handleAccountsRename);
+	ipcMain.on('new-mail', handleNewMail);
 }
 
 // eslint-disable-next-line no-unused-vars
@@ -122,8 +149,99 @@ function handleAppReady() {
 	mainAppWindow.onAppReady(appConfig);
 }
 
-async function handleGetConfig() {
+async function handleGetConfig(event) {
+	// Key per-window config (e.g. zoom level) by the account's own partition
+	// so each account remembers its own zoom.
+	const partition = accountManager.partitionForWebContents(event.sender);
+	if (partition && partition !== config.partition) {
+		return Object.assign({}, config, { partition });
+	}
 	return config;
+}
+
+async function handleAccountsGet(event) {
+	return accountManager.getStateForWebContents(event.sender);
+}
+
+function handleAccountsSwitch(event, id) {
+	accountManager.switchTo(id);
+}
+
+function handleAccountsAdd() {
+	accountManager.addAccount();
+}
+
+function handleAccountsRemove(event, id) {
+	accountManager.removeAccount(id);
+}
+
+function handleAccountsRename(event, arg) {
+	accountManager.renameAccount(arg.id, arg.name);
+}
+
+/**
+ * New mail arrived in one of the account windows (detected by the
+ * mailNotifications preload watching the page title's unread count). Show a
+ * native desktop notification addressed to that account and play the new-mail
+ * sound, unless notifications are disabled in config. Clicking the
+ * notification focuses that account's window.
+ *
+ * @param {Electron.IpcRendererEvent} event
+ * @param {{count: number, delta: number}} arg
+ */
+function handleNewMail(event, arg) {
+	if (!config.notifyOnNewMail || config.disableNotifications) {
+		return;
+	}
+	const account = accountManager.getAccountByWebContents(event.sender);
+	const name = account ? account.name : 'Outlook';
+	const count = (arg && arg.count) || 1;
+	const body = count === 1 ? 'You have a new email' : 'You have ' + count + ' unread emails';
+
+	showDesktopNotification(name, body, account);
+
+	// Play the new-mail sound through the existing player (respects
+	// disableNotificationSound internally).
+	playNotificationSound(event, { type: 'new-message', audio: 'default', title: name, body: '' });
+}
+
+/**
+ * Show a new-mail desktop notification. Uses `notify-send` directly so we
+ * control the app name, icon, and `desktop-entry` hint — Electron's
+ * main-process Notification doesn't send the desktop-entry hint on Linux, so
+ * GNOME falls back to the binary name "electron". With the desktop-entry hint
+ * set to `outlook-for-linux`, GNOME resolves the name ("Outlook for Linux")
+ * and icon from outlook-for-linux.desktop. Clicking the notification launches
+ * the .desktop Exec, which the single-instance lock routes to the running
+ * window (focusing the account). Falls back to Electron's Notification if
+ * notify-send isn't available.
+ *
+ * @param {string} title
+ * @param {string} body
+ * @param {{id: string} | null} account
+ */
+function showDesktopNotification(title, body, account) {
+	const { execFile } = require('child_process');
+	const args = [
+		'-a', 'Outlook for Linux',
+		'-i', notificationIcon,
+		'-h', 'string:desktop-entry:outlook-for-linux',
+		'-u', 'normal',
+		title, body
+	];
+	execFile('notify-send', args, err => {
+		if (!err) {
+			return;
+		}
+		logger.debug('notify-send unavailable, falling back to Electron Notification: ' + err.message);
+		const notification = new Notification({ title, body, icon: notificationIcon, silent: true });
+		notification.on('click', () => {
+			if (account) {
+				accountManager.switchTo(account.id);
+			}
+		});
+		notification.show();
+	});
 }
 
 async function handleGetZoomLevel(_, name) {
@@ -184,5 +302,5 @@ function handleCertificateError() {
  */
 async function setBadgeCountHandler(event, count) {
 	logger.debug(`Badge count set to '${count}'`);
-	app.setBadgeCount(count);
+	accountManager.setBadgeCount(event.sender, count);
 }

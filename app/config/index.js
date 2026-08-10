@@ -76,6 +76,11 @@ function argv(configPath) {
 				describe: 'Close the app when clicking the close (X) cross',
 				type: 'boolean'
 			},
+			accountCacheSize: {
+				default: 2,
+				describe: 'Number of non-active account windows to keep alive (cached) before evicting to cold',
+				type: 'number'
+			},
 			defaultURLHandler: {
 				default: '',
 				describe: 'Default application to be used to open the HTTP URLs',
@@ -94,6 +99,11 @@ function argv(configPath) {
 			disableNotificationWindowFlash: {
 				default: false,
 				describe: 'A flag indicates whether to disable window flashing when there is a notification',
+				type: 'boolean'
+			},
+			notifyOnNewMail: {
+				default: true,
+				describe: 'Show a desktop notification when new mail arrives (driven by the unread count in the page title)',
 				type: 'boolean'
 			},
 			partition: {

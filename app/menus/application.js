@@ -31,8 +31,8 @@ exports = module.exports = (Menus) => ({
 		{
 			type: 'separator',
 		},
-		getSettingsMenu(Menus)
-		,
+		getSettingsMenu(Menus),
+		getAccountsMenu(Menus),
 		{
 			type: 'separator',
 		},
@@ -53,6 +53,26 @@ function getSettingsMenu(Menus) {
 				click: () => Menus.restoreSettings()
 			}
 		]
+	};
+}
+
+function getAccountsMenu(Menus) {
+	const accounts = Menus.accountManager.getAccounts();
+	const activeId = Menus.accountManager.activeId;
+	const submenu = accounts.map(account => ({
+		label: account.name,
+		type: 'radio',
+		checked: account.id === activeId,
+		click: () => Menus.switchAccount(account.id)
+	}));
+	submenu.push({ type: 'separator' });
+	submenu.push({
+		label: 'Add account…',
+		click: () => Menus.addAccount()
+	});
+	return {
+		label: 'Accounts',
+		submenu: submenu
 	};
 }
 
