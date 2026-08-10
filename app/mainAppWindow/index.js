@@ -81,7 +81,15 @@ function createWindow(account, accountManager) {
 	 * @param {Electron.CallbackResponse} callback
 	 */
 	function onBeforeRequestHandler(details, callback) {
-		if (aboutBlankRequestCount < 1) {
+		// Only claim the pending "open in new window" slot for the actual
+		// page navigation that follows a denied about:blank popup
+		// (resourceType 'mainFrame'). Unrelated background requests
+		// (lazy-loaded script chunks, XHR/fetch, images, etc.) must not be
+		// hijacked and opened externally — otherwise double-clicking a
+		// message or breaking out a compose window can open the system
+		// browser on a raw .js asset URL instead of the mail item.
+		// (Ported from upstream PR #23 by thelad-dev, fixing #15.)
+		if (aboutBlankRequestCount < 1 || details.resourceType !== 'mainFrame') {
 			callback({});
 		} else {
 			logger.debug('DEBUG - webRequest to  ' + details.url + ' intercepted!');
