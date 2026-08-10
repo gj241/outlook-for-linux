@@ -3,14 +3,14 @@
   "version": "1.4.0",
   "main": "app/index.js",
   "description": "Unofficial client for Microsoft Outlook for Linux",
-  "homepage": "https://github.com/mahmoudbahaa/outlook-for-linux",
+  "homepage": "https://github.com/gj241/outlook-for-linux",
   "keywords": [
     "Outlook",
     "Microsoft Outlook"
   ],
   "repository": {
     "type": "git",
-    "url": "git+ssh://github.com/mahmoudbahaa/outlook-for-linux"
+    "url": "git+ssh://github.com/gj241/outlook-for-linux"
   },
   "author": {
     "name": "Mahmoud Bahaa",
@@ -86,6 +86,8 @@
       ],
       "publish": {
         "provider": "github",
+        "owner": "gj241",
+        "repo": "outlook-for-linux",
         "releaseType": "draft"
       }
     },

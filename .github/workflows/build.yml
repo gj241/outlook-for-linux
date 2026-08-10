@@ -1,9 +1,14 @@
 name: Build & Release
 
 env:
-  GH_TOKEN: ${{ SECRETS.GITHUB_TOKEN }}
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 on: push
+
+# The auto GITHUB_TOKEN needs contents:write to create the draft release
+# and upload artifacts on the fork. (Newer repos default to read-only.)
+permissions:
+  contents: write
 
 defaults:
   run:
