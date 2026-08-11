@@ -1,6 +1,4 @@
-const { app, Menu, dialog, ipcMain } = require('electron');
-const fs = require('fs'),
-	path = require('path');
+const { app, Menu, dialog } = require('electron');
 const application = require('./application');
 const preferences = require('./preferences');
 const help = require('./help');
@@ -104,18 +102,6 @@ class Menus {
 		}
 	}
 
-	saveSettings() {
-		if (this.activeWindow) {
-			this.activeWindow.webContents.send('get-outlook-settings');
-		}
-	}
-
-	restoreSettings() {
-		if (this.activeWindow) {
-			this.activeWindow.webContents.send('set-outlook-settings', JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'outlook_settings.json'))));
-		}
-	}
-
 	switchAccount(id) {
 		this.accountManager.switchTo(id);
 	}
@@ -145,8 +131,6 @@ class Menus {
 
 	initializeEventHandlers() {
 		app.on('before-quit', () => this.onBeforeQuit());
-		ipcMain.on('get-outlook-settings', saveSettingsInternal);
-		ipcMain.on('set-outlook-settings', restoreSettingsInternal);
 	}
 
 	onBeforeQuit() {
@@ -188,10 +172,6 @@ class Menus {
 			{ label: 'Hide', click: () => this.hide() },
 			{ label: 'Debug', click: () => this.debug() },
 			{ type: 'separator' },
-			{ label: 'Settings', submenu: [
-				{ label: 'Save', click: () => this.saveSettings() },
-				{ label: 'Restore', click: () => this.restoreSettings() }
-			] },
 			{ label: 'Accounts', submenu: accountsSubmenu },
 			{ type: 'separator' },
 			{ label: 'Quit', submenu: [
@@ -199,25 +179,6 @@ class Menus {
 				{ label: 'Clear Storage', click: () => this.quit(true) }
 			] }
 		];
-	}
-}
-
-function saveSettingsInternal(event, arg) {
-	fs.writeFileSync(path.join(app.getPath('userData'), 'outlook_settings.json'), JSON.stringify(arg));
-	dialog.showMessageBoxSync({
-		message: 'Settings have been saved successfully!',
-		title: 'Save settings',
-		type: 'info'
-	});
-}
-
-function restoreSettingsInternal(event, arg) {
-	if (arg) {
-		dialog.showMessageBoxSync({
-			message: 'Settings have been restored successfully!',
-			title: 'Restore settings',
-			type: 'info'
-		});
 	}
 }
 

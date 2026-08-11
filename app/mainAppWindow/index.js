@@ -1,4 +1,3 @@
-require('@electron/remote/main').initialize();
 const { shell, BrowserWindow, app, nativeTheme, dialog } = require('electron');
 const isDarkMode = nativeTheme.shouldUseDarkColors;
 const windowStateKeeper = require('electron-window-state');
@@ -6,7 +5,7 @@ const path = require('path');
 const login = require('../login');
 const Menus = require('../menus');
 const { LucidLog } = require('lucid-log');
-const exec = require('child_process').exec;
+const { execFile } = require('child_process');
 const TrayIconChooser = require('../browser/tools/trayIconChooser');
 const accountManager = require('../accountManager');
 
@@ -41,7 +40,6 @@ let windowState;
 function createWindow(account, accountManager) {
 	const win = createNewBrowserWindow(account.partition);
 
-	require('@electron/remote/main').enable(win.webContents);
 	windowState.manage(win);
 
 	win.eval = global.eval = function () { // eslint-disable-line no-eval
@@ -91,9 +89,15 @@ function createWindow(account, accountManager) {
 		// (Ported from upstream PR #23 by thelad-dev, fixing #15.)
 		if (aboutBlankRequestCount < 1 || details.resourceType !== 'mainFrame') {
 			callback({});
-		} else {
+		} else if (isSafeExternalUrl(details.url)) {
 			logger.debug('DEBUG - webRequest to  ' + details.url + ' intercepted!');
 			shell.openExternal(details.url);
+			aboutBlankRequestCount -= 1;
+			callback({ cancel: true });
+		} else {
+			// Non-http(s) target after a denied about:blank popup — don't hand
+			// it to the system browser (could be file://, smb://, etc.).
+			logger.debug('Refusing to open non-http(s) URL externally: ' + details.url);
 			aboutBlankRequestCount -= 1;
 			callback({ cancel: true });
 		}
@@ -139,8 +143,12 @@ function createWindow(account, accountManager) {
 	}
 
 	function openInBrowser(details) {
+		if (!isSafeExternalUrl(details.url)) {
+			logger.debug('Refusing to open non-http(s) URL externally: ' + details.url);
+			return;
+		}
 		if (config.defaultURLHandler.trim() !== '') {
-			exec(`${config.defaultURLHandler.trim()} ${details.url}`, openInBrowserErrorHandler);
+			execFile(config.defaultURLHandler.trim(), [details.url], openInBrowserErrorHandler);
 		} else {
 			shell.openExternal(details.url);
 		}
@@ -256,6 +264,17 @@ function restoreWindow(win) {
 	win.focus();
 }
 
+/**
+ * Only http(s) URLs may be handed to the system browser / external handler.
+ * Everything else (file://, smb://, custom schemes) is denied to avoid
+ * launching unexpected apps or opening local resources.
+ * @param {string} url
+ * @returns {boolean}
+ */
+function isSafeExternalUrl(url) {
+	return typeof url === 'string' && /^https?:\/\//i.test(url);
+}
+
 function createNewBrowserWindow(partition) {
 	return new BrowserWindow({
 		title: 'Outlook for Linux',
@@ -275,6 +294,7 @@ function createNewBrowserWindow(partition) {
 			preload: path.join(__dirname, '..', 'browser', 'index.js'),
 			plugins: true,
 			contextIsolation: false,
+			nodeIntegration: false,
 			sandbox: false,
 			spellcheck: false
 		},

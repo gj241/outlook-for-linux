@@ -31,7 +31,6 @@ exports = module.exports = (Menus) => ({
 		{
 			type: 'separator',
 		},
-		getSettingsMenu(Menus),
 		getAccountsMenu(Menus),
 		{
 			type: 'separator',
@@ -39,22 +38,6 @@ exports = module.exports = (Menus) => ({
 		getQuitMenu(Menus)
 	],
 });
-
-function getSettingsMenu(Menus) {
-	return {
-		label: 'Settings',
-		submenu: [
-			{
-				label: 'Save',
-				click: () => Menus.saveSettings()
-			},
-			{
-				label: 'Restore',
-				click: () => Menus.restoreSettings()
-			}
-		]
-	};
-}
 
 function getAccountsMenu(Menus) {
 	const accounts = Menus.accountManager.getAccounts();

@@ -24,7 +24,6 @@ class Zoom {
 		_Zoom_config.set(this, config);
 		_Zoom_initialized.set(this, true);
 		this.restoreZoomLevel();
-		require('@electron/remote').getCurrentWindow().webContents.on('zoom-changed', setZoomChangedHandler(config));
 	}
 
 	get config() {
@@ -50,12 +49,6 @@ class Zoom {
 	decreaseZoomLevel() {
 		setNextZoomLevel('-', this.config);
 	}
-}
-
-function setZoomChangedHandler(config) {
-	return (event, zoomDirection) => {
-		setNextZoomLevel(zoomDirection == 'in' ? '+' : '-', config);
-	};
 }
 
 function restoreZoomLevelInternal(config) {

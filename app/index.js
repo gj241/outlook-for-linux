@@ -41,18 +41,10 @@ const notificationSounds = [{
 	file: path.join(config.appPath, 'assets/sounds/new_message.wav')
 }];
 
-// Notification sound player
-/**
- * @type {NodeSoundPlayer}
- */
-let player;
-try {
-	// eslint-disable-next-line no-unused-vars
-	const { NodeSound } = require('node-sound');
-	player = NodeSound.getDefaultPlayer();
-} catch (e) {
-	logger.info('No audio players found. Audio notifications might not work.');
-}
+// Notification sound player. Portable execFile-based player (no native
+// module to rebuild across Electron upgrades); see app/audio/player.js.
+const { createPlayer } = require('./audio/player');
+const player = createPlayer();
 
 const certificateModule = require('./certificate');
 const gotTheLock = app.requestSingleInstanceLock();
@@ -79,8 +71,6 @@ const protocolClient = 'msoutlook';
 if (!app.isDefaultProtocolClient(protocolClient, process.execPath)) {
 	app.setAsDefaultProtocolClient(protocolClient, process.execPath);
 }
-
-app.allowRendererProcessReuse = false;
 
 if (!gotTheLock) {
 	logger.info('App already running');
@@ -120,7 +110,11 @@ async function playNotificationSound(event, options) {
 
 	if (sound) {
 		logger.debug(`Playing file: ${sound.file}`);
-		await player.play(sound.file);
+		try {
+			await player.play(sound.file);
+		} catch (e) {
+			logger.debug(`Failed to play notification sound: ${e.message}`);
+		}
 		return;
 	}
 
