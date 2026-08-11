@@ -1,51 +1,57 @@
 # outlook-for-linux
 
-This is an unofficial Microsoft Outlook client.
+An unofficial Microsoft Outlook client for Linux (and macOS/Windows), built with [`Electron`](https://electronjs.org/). It wraps the Outlook Web App as a standalone desktop application.
 
-Please report bugs and questions in the issues section. We will attend them as soon as possible.
+> **Maintained fork.** This is a continuation of [`mahmoudbahaa/outlook-for-linux`](https://github.com/mahmoudbahaa/outlook-for-linux) (itself a clone of [`IsmaelMartinez/teams-for-linux`](https://github.com/IsmaelMartinez/teams-for-linux)), which had not been updated for ~3 years. The fork lives at [`gj241/outlook-for-linux`](https://github.com/gj241/outlook-for-linux) and is actively maintained.
 
-PRs and suggestions are welcomed. We will continue to support the community.
+Please report bugs and questions in the [issues](https://github.com/gj241/outlook-for-linux/issues) section. PRs and suggestions are welcome.
 
 ---
 
-[//]: # ([![Gitter chat]&#40;https://badges.gitter.im/ismaelmartinez/outlook-for-linux.png&#41;]&#40;https://gitter.im/outlook-for-linux/community "Gitter chat"&#41;)
-![](https://img.shields.io/github/release/mahmoudbahaa/outlook-for-linux.svg?style=flat)
-![](https://img.shields.io/github/downloads/mahmoudbahaa/outlook-for-linux/total.svg?style=flat)
-![Build & Release](https://github.com/mahmoudbahaa/outlook-for-linux/workflows/Build%20&%20Release/badge.svg)
-
-[//]: # (![]&#40;https://img.shields.io/librariesio/github/mahmoudbahaa/outlook-for-linux&#41;)
-[![Known Vulnerabilities](https://snyk.io//test/github/mahmoudbahaa/outlook-for-linux/badge.svg?targetFile=package.json)](https://snyk.io//test/github/mahmoudbahaa/outlook-for-linux?targetFile=package.json)
-[![Codacy Badge](https://app.codacy.com/project/badge/Grade/826059bbf59d45148c46e440579fc221)](https://app.codacy.com/gh/mahmoudbahaa/outlook-for-linux/dashboard?utm_source=gh&utm_medium=referral&utm_content=&utm_campaign=Badge_grade)
-[![outlook-for-linux](https://snapcraft.io/outlook-for-linux/badge.svg)](https://snapcraft.io/outlook-for-linux)
-
-Unofficial Microsoft Outlook client for Linux using [`Electron`](https://electronjs.org/).
-It uses the Web App and wraps it as a standalone application using Electron.
-
-A clone of https://github.com/IsmaelMartinez/teams-for-linux but for outlook
+![](https://img.shields.io/github/release/gj241/outlook-for-linux.svg?style=flat)
+![](https://img.shields.io/github/downloads/gj241/outlook-for-linux/total.svg?style=flat)
+![Build & Release](https://github.com/gj241/outlook-for-linux/actions/workflows/build.yml/badge.svg)
 
 ## Downloads
 
-Binaries available under [releases](https://github.com/mahmoudbahaa/outlook-for-linux/releases) for `AppImage`, `rpm`, `deb`, `snap`, and `tar.gz`.
+Pre-built binaries are on the [releases page](https://github.com/gj241/outlook-for-linux/releases), built for **x64 (amd64)**, **arm64 (aarch64)**, and **armv7l (armhf)**:
 
-In the case of `AppImage`, we recommend using [`AppImageLauncher`](https://github.com/TheAssassin/AppImageLauncher) for the best desktop experience.
+| Format | Linux | macOS | Windows |
+|:-:|:-:|:-:|:-:|
+| `deb` | amd64 · arm64 · armv7l | — | — |
+| `rpm` | x86_64 · aarch64 · armv7l | — | — |
+| `AppImage` | amd64 · arm64 · armv7l | — | — |
+| `tar.gz` | amd64 · arm64 · armv7l | — | — |
+| `snap` | amd64 · armv7l (see note) | — | — |
+| `dmg` / `zip` | — | arm64 | — |
+| `exe` | — | — | x64 |
 
-[![Get it from the Snap Store](https://snapcraft.io/static/images/badges/en/snap-store-black.svg)](https://snapcraft.io/outlook-for-linux)
+For `AppImage`, we recommend [`AppImageLauncher`](https://github.com/TheAssassin/AppImageLauncher) for the best desktop experience.
+
+> **Snap note:** The snap name `outlook-for-linux` on the Snap Store is owned by the abandoned upstream and can't be published to, so the `.snap` is shipped as a direct download from the release page. Install it with `sudo snap install outlook-for-linux_1.4.0_amd64.snap --dangerous` (the `--dangerous` flag is required because it isn't store-signed).
+
+## Features
+
+- **Multi-account switcher** — a draggable pill in the top-right corner lets you run several Outlook accounts at once. Each account lives on its own persistent partition, so you stay logged in to all of them and switch instantly (recently-used accounts are cached; others reload without re-signing-in). Add, rename, and remove accounts from the switcher or the tray menu.
+- **New-mail notifications** — polls the unread count in the page title and raises a native desktop notification (with a sound) when new mail arrives. Uses `notify-send` with the `desktop-entry` hint so GNOME shows it correctly. Controlled by the `notifyOnNewMail` setting (on by default).
+- **Linux branding** — the dock, notifications, and tray show "Outlook for Linux" (not "Electron"), with the correct icon.
+- **"Open in new window" fix** — opening a message in a new window works correctly (ported from upstream PR #23).
 
 ## Starting arguments
 
-Check in the config [`README.md`](app/config/README.md) in the config folder.
+The application uses [yargs](https://www.npmjs.com/package/yargs) for command-line arguments. See the full list (including `notifyOnNewMail`, `accountCacheSize`, `disableNotifications`, etc.) in [`app/config/README.md`](app/config/README.md).
 
 ## Contributing
 
-Please refer to the [`CONTRIBUTING.md`](CONTRIBUTING.md) file for more information about how to run this application from source, and/or how to contribute.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for how to run from source and how to contribute.
 
 ## Known issues
 
-Known issues and workarounds can be found in the [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md) file.
+Known issues and workarounds are in [`KNOWN_ISSUES.md`](KNOWN_ISSUES.md).
 
 ## History
 
-Read about the history of this project in the [`HISTORY.md`](HISTORY.md) file.
+Read about the history of this project in [`HISTORY.md`](HISTORY.md).
 
 ## License
 

@@ -73,7 +73,7 @@ jobs:
 
   release:
     needs: build
-    if: contains(github.ref, 'develop-outlook')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:

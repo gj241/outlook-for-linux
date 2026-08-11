@@ -86,7 +86,7 @@ jobs:
 
   release:
     needs: [snap, snap-armv7l]
-    if: contains(github.ref, 'develop-outlook')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
