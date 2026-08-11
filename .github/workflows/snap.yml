@@ -2,6 +2,16 @@ name: Snap Build
 
 on: push
 
+# The snap name "outlook-for-linux" is registered on the Snap Store by the
+# abandoned upstream author, so we can't push there. Instead we build the
+# snap and attach it to the GitHub release as a downloadable asset (users
+# install with `snap install <file>.snap --dangerous`).
+permissions:
+  contents: write
+
+env:
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
 defaults:
   run:
     shell: bash
@@ -11,9 +21,6 @@ jobs:
   snap:
     runs-on: ubuntu-latest
 
-    env:
-      SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-
     steps:
       - name: Install Snapcraft
         uses: samuelmeuli/action-snapcraft@v2
@@ -29,16 +36,24 @@ jobs:
       - name: Build
         run: yarn --link-duplicates --pure-lockfile
 
-      - name: Release
-        if: contains(github.ref, 'develop-outlook')
-        run: yarn dist:linux:snap --publish always
+      - name: Package snap (no publish)
+        run: yarn dist:linux:snap -- --publish never
+
+      - name: Stage snap
+        run: |
+          mkdir -p artifacts
+          find dist -maxdepth 1 -type f -name '*.snap' -exec cp {} artifacts/ \;
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-amd64
+          path: artifacts/
+          if-no-files-found: error
 
   snap-armv7l:
     runs-on: ubuntu-latest
 
-    env:
-      SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_TOKEN }}
-
     steps:
       - name: Install Snapcraft
         uses: samuelmeuli/action-snapcraft@v2
@@ -54,6 +69,51 @@ jobs:
       - name: Build
         run: yarn --link-duplicates --pure-lockfile
 
-      - name: Release
-        if: contains(github.ref, 'develop-outlook')
-        run: yarn dist:linux:snap:armv7l --publish always
+      - name: Package snap (no publish)
+        run: yarn dist:linux:snap:armv7l -- --publish never
+
+      - name: Stage snap
+        run: |
+          mkdir -p artifacts
+          find dist -maxdepth 1 -type f -name '*.snap' -exec cp {} artifacts/ \;
+
+      - name: Upload snap artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snap-armv7l
+          path: artifacts/
+          if-no-files-found: error
+
+  release:
+    needs: [snap, snap-armv7l]
+    if: contains(github.ref, 'develop-outlook')
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Download all snap artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Attach snaps to the release
+        run: |
+          set -e
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v$VERSION"
+          mkdir -p upload
+          find artifacts -type f -name '*.snap' -exec cp {} upload/ \;
+          echo "Uploading $(find upload -type f | wc -l) snap(s) to $TAG"
+          if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            # Release doesn't exist yet. build.yml's release job usually creates
+            # it; create as a fallback, tolerating a concurrent create race.
+            gh release create "$TAG" -R "$GITHUB_REPOSITORY" --draft \
+              --target "$GITHUB_SHA" --title "$VERSION" \
+              --notes "Draft release $VERSION (built from $GITHUB_SHA)." 2>/dev/null || true
+            if ! gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+              echo "Release $TAG not found and could not be created"; exit 1
+            fi
+          fi
+          gh release upload "$TAG" -R "$GITHUB_REPOSITORY" upload/*.snap --clobber
