@@ -121,9 +121,34 @@ async function playNotificationSound(event, options) {
 	logger.debug('No notification sound played', player, options);
 }
 
-function onRenderProcessGone() {
-	logger.debug('render-process-gone');
-	app.quit();
+// Last render-process-gone time per webContents, to avoid a reload loop if a
+// renderer crash is deterministic (e.g. a sandbox issue on a given partition).
+const _lastRenderCrash = new WeakMap();
+
+function onRenderProcessGone(event, webContents, details) {
+	logger.error(`render-process-gone: ${JSON.stringify(details)}`);
+	// A single account's renderer crashing must not take down the whole app:
+	// the other account windows and the tray should survive. Try to recover
+	// the crashed window by reloading it (which spins up a fresh renderer),
+	// but refuse to reload the same webContents more than once within 10s so
+	// a deterministic crash can't loop. If the window can't be recovered, the
+	// user can still switch away and back (AccountManager recreates it) or hit
+	// Refresh (tray / Ctrl+R), which calls connMgr.refresh() -> reload.
+	if (!webContents || typeof webContents.isDestroyed !== 'function' || webContents.isDestroyed()) {
+		return;
+	}
+	const now = Date.now();
+	const last = _lastRenderCrash.get(webContents) || 0;
+	if (now - last < 10000) {
+		logger.debug('render-process-gone: recent crash, not reloading (avoid loop)');
+		return;
+	}
+	_lastRenderCrash.set(webContents, now);
+	try {
+		webContents.reload();
+	} catch (e) {
+		logger.debug(`render-process-gone: reload failed: ${e.message}`);
+	}
 }
 
 function onAppTerminated(signal) {
