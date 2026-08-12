@@ -151,12 +151,12 @@ function onRenderProcessGone(event, webContents, details) {
 	}
 }
 
-function onAppTerminated(signal) {
-	if (signal === 'SIGTERM') {
-		process.abort();
-	} else {
-		app.quit();
-	}
+function onAppTerminated() {
+	// Clean quit so Electron flushes cookies / session storage. The old code
+	// hard-aborted on SIGTERM (inherited from teams-for-linux #520), which
+	// skipped shutdown and could leave partitions unflushed — forcing a
+	// re-login after a `kill`, desktop logout, or system shutdown.
+	app.quit();
 }
 
 function handleAppReady() {
